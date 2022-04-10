@@ -2,11 +2,11 @@ let DEBUG = !true;
 const E = (() => {
 
 const SLOP = 0,
-      SLOP_PERCENT = 0.5,
+      SLOP_PERCENT = 1,
       MAX_POSITION_CHANGE = 0,
 
-      MAX_VELOCITY_CHANGE = 0.01,
-      VELOCITY_CHANGE_SCALE = 0.03;
+      MAX_VELOCITY_CHANGE = 100,
+      VELOCITY_CHANGE_SCALE = 0.02;
 
 const bodies = [];
 
@@ -21,7 +21,7 @@ const Circle = (() => {
         ToLocal(v) { return V2D.Sub(v, this.position); },
         ToWorld(v) { return V2D.Add(v, this.position); },
     };
-    return ({ position = [0, 0], radius = 10 } = {}) => Object.setPrototypeOf({ position, radius }, proto);
+    return ({ position = [0, 0], radius = 10 } = {}) => Object.setPrototypeOf({ position, radius, bound: radius }, proto);
 })();
 const Box = (() => {
     const proto = {
@@ -29,7 +29,7 @@ const Box = (() => {
         ToLocal(v) { return V2D.Sub(v, this.position); },
         ToWorld(v) { return V2D.Add(v, this.position); },
     };
-    return ({ position = [0, 0], size = [1, 1] } = {}) => Object.setPrototypeOf({ position, size, }, proto);
+    return ({ position = [0, 0], size = [1, 1] } = {}) => Object.setPrototypeOf({ position, size, bound: Math.sqrt(sq(size[0]) + sq(size[1])) }, proto);
 })();
 const ConvexPolygon = (() => {
     const proto = {
@@ -37,7 +37,14 @@ const ConvexPolygon = (() => {
         ToLocal(v) { return V2D.Sub(v, this.position); },
         ToWorld(v) { return V2D.Add(v, this.position); },
     };
-    return ({ position = [0, 0], vertices = [] } = {}) => Object.setPrototypeOf({ position, vertices }, proto);
+    return ({ position = [0, 0], vertices = [] } = {}) => Object.setPrototypeOf({ position, vertices, bound: (() => {
+        let m = 0;
+        for(let i = 0; i < vertices.length; i += 1) {
+            const v = vertices[i], d = sq(v[0]) + sq(v[1]);
+            if(d > m) m = d;
+        }
+        return Math.sqrt(m);
+    })() }, proto);
 })();
 
 // Intersection detection & contact point calculation (body x body)
@@ -385,7 +392,7 @@ const RigidBody = (() => {
             this.invMomentOfInertia = 1 / a;
         },
     };
-    return ({ position = [0, 0], velocity = [0, 0], angularVelocity = 0, rotation = 0, mass = 1, momentOfInertia = sq(mass) * 3, shape = Circle(), staticFriction = 0.5, dynamicFriction = 0.5, elasticity = 0.1, static = false } = {}, indices = [0]) => {
+    return ({ position = [0, 0], velocity = [0, 0], angularVelocity = 0, rotation = 0, mass = 1, momentOfInertia = sq(mass) * 2, shape = Circle(), staticFriction = 0.8, dynamicFriction = 0.8, elasticity = 0.1, static = false } = {}, indices = [0]) => {
         const body = Object.setPrototypeOf({ position, velocity, acceleration: [0, 0], angularVelocity, angularAcceleration: 0, rotation, mass, invMass: 1 / mass, momentOfInertia, invMomentOfInertia: 1 / momentOfInertia, shape, staticFriction, dynamicFriction, elasticity, static }, proto);
         for(let i = 0; i < indices.length; i += 1) {
             if(!bodies[indices[i]]) bodies[indices[i]] = [];
@@ -395,8 +402,10 @@ const RigidBody = (() => {
     };
 })();
 
-function run(dt = 16) {
+function run(dt = 16, iterations = 1) {
     const invDt = 1 / dt;
+    dt /= iterations;
+for(let iter = 0; iter < iterations; iter += 1) {
     for(let i = 0; i < bodies.length; i += 1) {
         const layer = bodies[i];
         for(let j = 0; j < layer.length; j += 1) {
@@ -408,8 +417,6 @@ function run(dt = 16) {
             body.acceleration[0] = body.acceleration[1] = body.angularAcceleration = 0;
         }
     }
-for(let iter = 1; iter < 2; iter += 1) {
-    const invIter = 1 / iter;
     const changes = [];
     const forces = [];
     for(let i = 0; i < bodies.length; i += 1) {
@@ -420,6 +427,7 @@ for(let iter = 1; iter < 2; iter += 1) {
             for(let k = j + 1; k < layer.length; k += 1) {
                 let body2 = layer[k];
                 if(body1.static && body2.static) { continue; }
+                if(V2D.SqMag(V2D.iSub(V2D.Add(body1.shape.position, body1.position), V2D.Add(body2.shape.position, body2.position))) > sq(body1.shape.bound + body2.shape.bound)) continue;
                 const contactPoints = collisionData(body1, body2);
                 if(!contactPoints || !contactPoints.length) continue;
                 if(DEBUG) {
@@ -447,8 +455,8 @@ for(let iter = 1; iter < 2; iter += 1) {
                         // Collision impulses
                         const impulse = Math.max(0, coefficientOfRestitution * V2D.Dot(normal, velocityDifference) / (body1.invMass + body2.invMass + sq(V2D.Cross(contactVector1, normal)) * body1.invMomentOfInertia + sq(V2D.Cross(contactVector2, normal)) * body2.invMomentOfInertia));
                         // const impulse = Math.max(0, coefficientOfRestitution * V2D.Dot(normal, velocityDifference) / (body1.invMass + body2.invMass));
-                        changes[i].push([body1, V2D.Scale(normal, penetrationDepth * (1 - massRatio)), contactPoint, V2D.Scale(normal, impulse), invIter]);
-                        changes[i].push([body2, V2D.Scale(normal, -penetrationDepth * massRatio), contactPoint, V2D.Scale(normal, -impulse), invIter]);
+                        changes[i].push([body1, V2D.Scale(normal, penetrationDepth * (1 - massRatio)), contactPoint, V2D.Scale(normal, impulse)]);
+                        changes[i].push([body2, V2D.Scale(normal, -penetrationDepth * massRatio), contactPoint, V2D.Scale(normal, -impulse)]);
 
                         // Friction impulse
                         const frictionVector = V2D.iNormalize(V2D.Sub(velocityDifference, V2D.Scale(normal, V2D.Dot(velocityDifference, normal))));
@@ -456,8 +464,8 @@ for(let iter = 1; iter < 2; iter += 1) {
                         let frictionImpulse = Math.max(0, V2D.Dot(velocityDifference, frictionVector) / (body1.invMass + body2.invMass + sq(V2D.Cross(contactVector1, frictionVector)) * body1.invMomentOfInertia + sq(V2D.Cross(contactVector2, frictionVector)) * body2.invMomentOfInertia));
                         const friction = V2D.Mag([body1.staticFriction, body2.staticFriction]);
                         if(frictionImpulse > impulse * friction) frictionImpulse = impulse * V2D.Mag([body1.dynamicFriction, body2.dynamicFriction]);
-                        changes[i].push([body1, [0, 0], contactPoint, V2D.Scale(frictionVector, frictionImpulse), invIter]);
-                        changes[i].push([body2, [0, 0], contactPoint, V2D.Scale(frictionVector, -frictionImpulse), invIter]);
+                        changes[i].push([body1, [0, 0], contactPoint, V2D.Scale(frictionVector, frictionImpulse)]);
+                        changes[i].push([body2, [0, 0], contactPoint, V2D.Scale(frictionVector, -frictionImpulse)]);
                     }
                 }
                 else if(body2.static) {
@@ -473,7 +481,7 @@ for(let iter = 1; iter < 2; iter += 1) {
                         // Collision impulse
                         const impulse = Math.max(0, coefficientOfRestitution * V2D.Dot(normal, velocityDifference) / (body1.invMass + sq(V2D.Cross(V2D.Sub(contactPoint, body1.position), normal)) * body1.invMomentOfInertia));
                         // const impulse = Math.max(0, coefficientOfRestitution * V2D.Dot(normal, velocityDifference) / (body1.invMass));
-                        changes[i].push([body1, V2D.Scale(normal, penetrationDepth), contactPoint, V2D.Scale(normal, impulse), invIter]);
+                        changes[i].push([body1, V2D.Scale(normal, penetrationDepth), contactPoint, V2D.Scale(normal, impulse)]);
 
                         // Friction impulse
                         const frictionVector = V2D.iNormalize(V2D.Sub(velocityDifference, V2D.Scale(normal, V2D.Dot(velocityDifference, normal))));
@@ -481,7 +489,7 @@ for(let iter = 1; iter < 2; iter += 1) {
                         let frictionImpulse = Math.max(0, V2D.Dot(velocityDifference, frictionVector) / (body1.invMass + sq(V2D.Cross(contactVector1, frictionVector)) * body1.invMomentOfInertia));
                         const friction = V2D.Mag([body1.staticFriction, body2.staticFriction]);
                         if(frictionImpulse > impulse * friction) frictionImpulse = impulse * V2D.Mag([body1.dynamicFriction, body2.dynamicFriction]);
-                        changes[i].push([body1, [0, 0], contactPoint, V2D.Scale(frictionVector, frictionImpulse), invIter]);
+                        changes[i].push([body1, [0, 0], contactPoint, V2D.Scale(frictionVector, frictionImpulse)]);
                     }
                 }
                 else {
@@ -497,7 +505,7 @@ for(let iter = 1; iter < 2; iter += 1) {
                         // Collision impulse
                         const impulse = Math.max(0, coefficientOfRestitution * V2D.Dot(normal, velocityDifference) / (body2.invMass + sq(V2D.Cross(V2D.Sub(contactPoint, body2.position), normal)) * body2.invMomentOfInertia));
                         // const impulse = Math.max(0, coefficientOfRestitution * V2D.Dot(normal, velocityDifference) / (body2.invMass));
-                        changes[i].push([body2, V2D.Scale(normal, -penetrationDepth), contactPoint, V2D.Scale(normal, -impulse), invIter]);
+                        changes[i].push([body2, V2D.Scale(normal, -penetrationDepth), contactPoint, V2D.Scale(normal, -impulse)]);
 
                         // Friction impulse
                         const frictionVector = V2D.iNormalize(V2D.Sub(velocityDifference, V2D.Scale(normal, V2D.Dot(velocityDifference, normal))));
@@ -505,7 +513,7 @@ for(let iter = 1; iter < 2; iter += 1) {
                         let frictionImpulse = Math.max(0, V2D.Dot(velocityDifference, frictionVector) / (body2.invMass + sq(V2D.Cross(contactVector2, frictionVector)) * body2.invMomentOfInertia));
                         const friction = V2D.Mag([body1.staticFriction, body2.staticFriction]);
                         if(frictionImpulse > impulse * friction) frictionImpulse = impulse * V2D.Mag([body1.dynamicFriction, body2.dynamicFriction]);
-                        changes[i].push([body2, [0, 0], contactPoint, V2D.Scale(frictionVector, -frictionImpulse), invIter]);
+                        changes[i].push([body2, [0, 0], contactPoint, V2D.Scale(frictionVector, -frictionImpulse)]);
                     }
                 }
             }
@@ -514,12 +522,16 @@ for(let iter = 1; iter < 2; iter += 1) {
     for(let i = 0; i < changes.length; i += 1) {
         const layer = changes[i];
         for(let j = 0; j < layer.length; j += 1) {
-            layer[j][0].ApplyForce(layer[j][2], V2D.iScale(layer[j][3], layer[j][4] * invDt));
-            V2D.iAdd(layer[j][0].velocity, V2D.iScale(layer[j][1], Math.min(MAX_VELOCITY_CHANGE, layer[j][4]) * VELOCITY_CHANGE_SCALE * dt));
+            layer[j][0].ApplyForce(layer[j][2], V2D.iScale(layer[j][3], invDt));
+            const vd = V2D.Mag(layer[j][1]);
+            if(!vd) continue;
+            V2D.iAdd(layer[j][0].velocity, V2D.Scale(layer[j][1], Math.min(MAX_VELOCITY_CHANGE, vd) * VELOCITY_CHANGE_SCALE / vd));
         }
         if(MAX_POSITION_CHANGE) {
             for(let j = 0; j < layer.length; j += 1) {
-                V2D.iAdd(layer[j][0].position, V2D.iScale(layer[j][1], Math.min(MAX_POSITION_CHANGE, layer[j][4])));
+                const vd = V2D.Mag(layer[j][1]);
+                if(!vd) continue;
+                V2D.iAdd(layer[j][0].position, V2D.Scale(layer[j][1], Math.min(MAX_POSITION_CHANGE, vd) / vd));
             }
         }
     }
