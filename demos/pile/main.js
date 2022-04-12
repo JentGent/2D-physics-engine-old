@@ -112,7 +112,7 @@ function draw() {
             const p = body.ToWorld(draggingPoint), v = V2D.iSub([mouseX, mouseY], p);
             const m = V2D.SqMag(v);
             if(m) {
-                body.ApplyForce(p, V2D.Scale(v, V2D.Mag(v) * body.mass * 0.000004 / dt));
+                body.ApplyForce(p, V2D.Scale(v, V2D.Mag(v) * body.mass * 0.00002 / dt));
                 // V2D.iAdd(body.velocity, V2D.Scale(body.velocity, -0.000001 / m / dt));
                 V2D.iAdd(body.position, V2D.Scale(v, 0.02));
             }
@@ -157,7 +157,7 @@ function draw() {
             body.ApplyForce(V2D.Scale(body.velocity, -FRICTION), body.angularVelocity * -FRICTION);
         }
     }
-    E.run(dt, 2);
+    E.run(dt, 4);
     before = now;
 }
 
