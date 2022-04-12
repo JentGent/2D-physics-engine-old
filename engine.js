@@ -3,10 +3,10 @@ const E = (() => {
 
 const SLOP = 0,
       SLOP_PERCENT = 1,
-      MAX_POSITION_CHANGE = 0,
+      MAX_POSITION_CHANGE = 100,
 
-      MAX_VELOCITY_CHANGE = 100,
-      VELOCITY_CHANGE_SCALE = 0.02;
+      MAX_VELOCITY_CHANGE = 1,
+      VELOCITY_CHANGE_SCALE = 0.05;
 
 const bodies = [];
 
