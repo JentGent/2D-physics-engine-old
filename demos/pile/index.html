@@ -1,37 +1,24 @@
 <html>
-	<head>
-		<meta charset="UTF-8">
-		<title></title>
-		<style>
-			canvas {
-				border: 0px;
-				margin: 0px;
-			}
-			body {
-				margin: 0px;
-			}
-			input {
-				width: 100%;
-			}
-			div {
-				margin: 5px;
-				position: absolute;
-				top: 600px;
-				width: 100%;
-			}
-			.best {
-				color: red;
-			}
-		</style>
-	</head>
-	<body>
+    <head>
+        <meta charset="UTF-8">
+        <title>pile</title>
+        <style>
+            body {
+                margin: 0px;
+                padding: 0px;
+            }
+            canvas {
+                border: 1px solid black;
+                margin: 0px;
+                padding: 0px;
+                display: block;
+            }
+        </style>
+    </head>
+    <body oncontextmenu="return false;">
         <script language="javascript" type="text/javascript" src="https://cdn.jsdelivr.net/npm/p5@1.4.1/lib/p5.min.js"></script>
-		<script language="javascript" type="text/javascript" src="main.js"></script>
-		<div>
-			Simulation speed: <input type="range" min="1", max="10000" id="slider" value="1">
-			Freeze time: <input type="range" min="0", max="1000" id="freeze" value="0">
-			<p id="best"></p>
-			<p id="data"></p>
-		</div>
-	</body>
+        <script language="javascript" type="text/javascript" src="../../v2d.js"></script>
+        <script language="javascript" type="text/javascript" src="../../engine.js"></script>
+        <script language="javascript" type="text/javascript" src="main.js"></script>
+    </body>
 </html>
