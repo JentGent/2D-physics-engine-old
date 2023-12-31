@@ -1,4 +1,6 @@
-# 2D-physics-engine
+# 2D-physics-engine-old
+OLD; see [new](https://github.com/JentGent/2D-physics-engine) version
+
 Impulse resolution contact model.  
 Features customizable static & dynamic friction, collision layers, and slop.  
 Supports circles and convex polygons.
